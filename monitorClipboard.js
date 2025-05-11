@@ -34,11 +34,10 @@ function logResult(result) {
 }
 
 export async function monitorClipboard(client, passphrase) {
-    console.log(client);
     let lastClipboardContent = await readClipboard();
 
     const interval = setInterval(async () => {
-        if (!client) {
+        if (!client.isRunning) {
             clearInterval(interval);
             console.log("Interval destroyed.");
             return;

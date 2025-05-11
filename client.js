@@ -26,15 +26,7 @@ function createConnection(hostname, port, disableClipboard = false) {
         
         client.write(encryptedMessage);
 
-        console.log('Client connection details:');
-        console.log('Remote address:', client.remoteAddress);
-        console.log('Remote port:', client.remotePort);
-        console.log('Local address:', client.localAddress);
-        console.log('Local port:', client.localPort);
-        console.log('All client properties:');
-        Object.keys(client).forEach(key => {
-            console.log(`${key}:`, client[key]);
-        });
+        client.isRunning = true;
 
         if (!disableClipboard) {
             monitorClipboard(client, passphrase);
@@ -59,7 +51,9 @@ function createConnection(hostname, port, disableClipboard = false) {
     });
 
     const reconnect = () => {
-        client = null;
+        // client = null;
+        client.isRunning = false;
+        client.end();
         createConnection(hostname, port);
     }
 }

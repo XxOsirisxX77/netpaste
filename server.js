@@ -24,6 +24,8 @@ function startServer(port, disableClipboard) {
         const encryptedMessage = encrypt(message, passphrase);
         socket.write(encryptedMessage);
 
+        socket.isRunning = true;
+
         if (!disableClipboard) {
             monitorClipboard(socket, passphrase);
         }
@@ -36,10 +38,12 @@ function startServer(port, disableClipboard) {
         });
         
         socket.on('end', () => {
+            socket.isRunning = false;
             console.log('Client disconnected');
         });
 
         socket.on('error', (err) => {
+            socket.isRunning = false;
             console.error('Socket error:', err.message);
         });
     });
