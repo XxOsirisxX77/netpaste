@@ -23,7 +23,19 @@ function createConnection(hostname, port, disableClipboard = false) {
         console.log('Connected to server!');
         const message = 'NETPASTE_HELLO:Netpaste client v1.0';
         const encryptedMessage = encrypt(message, passphrase);
+        
         client.write(encryptedMessage);
+
+        console.log('Client connection details:');
+        console.log('Remote address:', client.remoteAddress);
+        console.log('Remote port:', client.remotePort);
+        console.log('Local address:', client.localAddress);
+        console.log('Local port:', client.localPort);
+        console.log('All client properties:');
+        Object.keys(client).forEach(key => {
+            console.log(`${key}:`, client[key]);
+        });
+
         if (!disableClipboard) {
             monitorClipboard(client, passphrase);
         }

@@ -34,6 +34,7 @@ function logResult(result) {
 }
 
 export async function monitorClipboard(client, passphrase) {
+    console.log(client);
     let lastClipboardContent = await readClipboard();
 
     const interval = setInterval(async () => {
