@@ -7,14 +7,19 @@
 
 import chalk from 'chalk';
 import clipboardy from 'clipboardy';
+import { sendUpdate } from './sendUpdate.js';
 
 let isUpdatingFromNetwork = false;
+let isNotText = false;
 
 async function readClipboard() {
     try {
         return await clipboardy.read();
     } catch (error) {
-        console.error(`Failed to read clipboard: ${error.message}`);
+        if (!isNotText) {
+            isNotText = true;
+            console.error(`Failed to read clipboard: ${error.message}`);
+        }
         return null;
     }
 }
@@ -28,10 +33,15 @@ function logResult(result) {
     process.stdout.write(result ? chalk.green(' Ok.\n') : chalk.red(' Error.\n'));
 }
 
-export async function monitorClipboard(sendUpdate, passphrase) {
+export async function monitorClipboard(client, passphrase) {
     let lastClipboardContent = await readClipboard();
 
-    setInterval(async () => {
+    const interval = setInterval(async () => {
+        if (!client) {
+            clearInterval(interval);
+            console.log("Interval destroyed.");
+            return;
+        }
         const content = await readClipboard();
 
         if (isUpdatingFromNetwork) {
@@ -40,10 +50,11 @@ export async function monitorClipboard(sendUpdate, passphrase) {
         }
 
         if (content && content !== lastClipboardContent) {
+            isNotText = false;
             logSending(content);
             lastClipboardContent = content;
             try {
-                await sendUpdate(content, passphrase);
+                await sendUpdate(client, content, passphrase);
                 logResult(true);
             } catch (error) {
                 console.error(`Error sending update: ${error.message}`);

@@ -10,7 +10,6 @@ import { getPassphrase } from './passphrase.js';
 import { handleMessage } from './messageHandler.js';
 import { encrypt } from './encryption.js';
 import { monitorClipboard } from './monitorClipboard.js';
-import { sendUpdate } from './sendUpdate.js';
 import { DEFAULT_PORT } from './config.js';
 import MessageAssembler from './fragmenter.js';
 const messageAssembler = new MessageAssembler();
@@ -26,7 +25,7 @@ function startServer(port, disableClipboard) {
         socket.write(encryptedMessage);
 
         if (!disableClipboard) {
-            monitorClipboard(sendUpdate.bind(null, socket), passphrase).catch(console.error);
+            monitorClipboard(socket, passphrase);
         }
 
         socket.on('data', (data) => {
