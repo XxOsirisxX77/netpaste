@@ -15,8 +15,8 @@ export function fragmentAndSendMessage(message, client) {
 
         const header = Buffer.alloc(20); // Adjust based on UID size
         header.writeBigInt64BE(BigInt(uid), 0); // UID
-        header.writeUInt8(part + 1, 8); // Part number
-        header.writeUInt8(totalParts, 9); // Total parts
+        header.writeUInt16BE(part + 1, 8); // Part number (2 bytes)
+        header.writeUInt16BE(totalParts, 10); // Total parts (2 bytes)
 
         const packet = Buffer.concat([magicNumber, header, fragment]);
         client.write(packet);
@@ -63,8 +63,8 @@ class MessageAssembler {
     addFragment(data, callback) {
         // Extract the header info
         const uid = data.readBigInt64BE(0);
-        const part = data.readUInt8(8);
-        const totalParts = data.readUInt8(9);
+        const part = data.readUInt16BE(8);
+        const totalParts = data.readUInt16BE(10);
         const fragment = data.slice(20); // Assuming the header is 20 bytes
         
         // If this is the first fragment received for a message, initialize storage
