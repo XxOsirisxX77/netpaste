@@ -22,7 +22,9 @@ export function handleMessage(data, passphrase, disableClipboard = false) {
             const clientMessage = decryptedMessage.replace('NETPASTE_HELLO:', '').trim();
             console.log(`Peer message: ${clientMessage}`);
         } else if (decryptedMessage.startsWith('NETPASTE_UPDATE:')) {
-            const updateMessage = decryptedMessage.replace('NETPASTE_UPDATE:', '').trim();            
+            // Normalize line endings: convert \r\n to \n to prevent doubling when
+            // other clipboard-sharing tools (like Synergy) add their own conversion
+            const updateMessage = decryptedMessage.replace('NETPASTE_UPDATE:', '').trim().replace(/\r\n/g, '\n');
             logReceived(updateMessage)
             if (!disableClipboard) {
                 setClipboardUpdateSource(true);
