@@ -2,23 +2,27 @@
 
 import { MAX_FRAGMENT_SIZE } from './config.js';
 
+const MAGIC_NUMBER = Buffer.from([0x4E, 0x65, 0x74, 0x50]); // 'NetP'
+const HEADER_SIZE = 20;
+const MAGIC_SIZE = MAGIC_NUMBER.length;
+
 export function fragmentAndSendMessage(message, client) {
     const messageBuffer = Buffer.from(message);
     const totalParts = Math.ceil(messageBuffer.length / MAX_FRAGMENT_SIZE);
     const uid = Date.now();
-    const magicNumber = Buffer.from([0x4E, 0x65, 0x74, 0x50]); // 'NetP' in hex
 
     for (let part = 0; part < totalParts; part++) {
         const start = part * MAX_FRAGMENT_SIZE;
         const end = start + MAX_FRAGMENT_SIZE;
-        const fragment = messageBuffer.slice(start, end);
+        const fragment = messageBuffer.subarray(start, end);
 
-        const header = Buffer.alloc(20); // Adjust based on UID size
-        header.writeBigInt64BE(BigInt(uid), 0); // UID
-        header.writeUInt16BE(part + 1, 8); // Part number (2 bytes)
-        header.writeUInt16BE(totalParts, 10); // Total parts (2 bytes)
+        const header = Buffer.alloc(HEADER_SIZE);
+        header.writeBigInt64BE(BigInt(uid), 0);      // UID (8 bytes)
+        header.writeUInt16BE(part + 1, 8);            // Part number (2 bytes)
+        header.writeUInt16BE(totalParts, 10);         // Total parts (2 bytes)
+        header.writeUInt16BE(fragment.length, 12);    // Fragment data length (2 bytes)
 
-        const packet = Buffer.concat([magicNumber, header, fragment]);
+        const packet = Buffer.concat([MAGIC_NUMBER, header, fragment]);
         client.write(packet);
     }
 }
@@ -26,71 +30,71 @@ export function fragmentAndSendMessage(message, client) {
 class MessageAssembler {
     constructor() {
         this.messages = {};
-        this.magicNumber = Buffer.from([0x4E, 0x65, 0x74, 0x50]); // 'NetP'
+        this.buffer = Buffer.alloc(0);
     }
 
     addData(data, callback) {
-        let start = 0;
-        let nextMagicNumberIndex = data.indexOf(this.magicNumber, start);
+        this.buffer = Buffer.concat([this.buffer, data]);
 
-        while (nextMagicNumberIndex !== -1) {
-            // Move past the magic number for the start of the actual data
-            const fragmentStart = nextMagicNumberIndex + this.magicNumber.length;
-
-            // Find the next occurrence of the magic number
-            const nextStart = data.indexOf(this.magicNumber, fragmentStart);
-
-            let fragment;
-            if (nextStart === -1) {
-                // If there's no other magic number, slice from the current start to the end of data
-                fragment = data.slice(fragmentStart);
-            } else {
-                // Slice the data from the current start to the next magic number
-                fragment = data.slice(fragmentStart, nextStart);
+        while (true) {
+            const magicIndex = this.buffer.indexOf(MAGIC_NUMBER);
+            if (magicIndex === -1) {
+                break;
             }
 
-            // Now that the fragment is correctly sliced (without the magic number), process it
+            // Discard any data before the first magic number
+            if (magicIndex > 0) {
+                this.buffer = this.buffer.subarray(magicIndex);
+            }
+
+            const minPacketSize = MAGIC_SIZE + HEADER_SIZE;
+
+            // Not enough data for magic + header yet
+            if (this.buffer.length < minPacketSize) {
+                break;
+            }
+
+            // Read the fragment data length from the header
+            const fragmentLength = this.buffer.readUInt16BE(MAGIC_SIZE + 12);
+            const fullPacketSize = minPacketSize + fragmentLength;
+
+            // Not enough data for the complete packet yet
+            if (this.buffer.length < fullPacketSize) {
+                break;
+            }
+
+            // Extract header + fragment data and process it
+            const fragment = this.buffer.subarray(MAGIC_SIZE, fullPacketSize);
             this.addFragment(fragment, callback);
-
-            if (nextStart === -1) {
-                break; // Exit if there are no more fragments
-            } else {
-                // Prepare to search for the next fragment
-                nextMagicNumberIndex = nextStart;
-            }
+            this.buffer = this.buffer.subarray(fullPacketSize);
         }
     }
+
     addFragment(data, callback) {
-        // Extract the header info
         const uid = data.readBigInt64BE(0);
         const part = data.readUInt16BE(8);
         const totalParts = data.readUInt16BE(10);
-        const fragment = data.slice(20); // Assuming the header is 20 bytes
-        
-        // If this is the first fragment received for a message, initialize storage
+        // Fragment data length at offset 12 already used by addData
+        const fragment = data.subarray(HEADER_SIZE);
+
         if (!this.messages[uid]) {
             this.messages[uid] = { parts: new Array(totalParts), received: 0 };
         }
 
-        // Store the fragment
-        if (!this.messages[uid].parts[part - 1]) { // Prevent overriding in case of duplicate fragments
+        if (!this.messages[uid].parts[part - 1]) {
             this.messages[uid].parts[part - 1] = fragment;
             this.messages[uid].received++;
 
-            // Check if all parts have been received
             if (this.messages[uid].received === totalParts) {
-                // Sort the parts
                 const completeMessage = Buffer.concat(this.messages[uid].parts);
-                delete this.messages[uid]; // Remove stored parts to free memory
+                delete this.messages[uid];
 
-                // Invoke the callback with the complete message
                 if (typeof callback === 'function') {
                     callback(completeMessage);
                 }
             }
         }
 
-        // Return null if the message is not yet fully assembled
         return null;
     }
 }
